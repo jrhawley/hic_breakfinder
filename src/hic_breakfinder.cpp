@@ -18,8 +18,7 @@ using namespace BamTools;
 using namespace std;
 
 void usage () {
-
-  std::cerr << "./hic_breakfinder\n\n";
+  std::cerr << "hic_breakfinder --bam-file <BAM> --exp-file-inter <INTER> --exp-file-intra <INTRA> --name <PREFIX>\n\n";
   std::cerr << "Required options:\n\n";
   std::cerr << "--bam-file [input bam file]\n";
   std::cerr << "--exp-file-inter [Inter-chromosomal 1Mb expectation file]\n";
@@ -29,24 +28,23 @@ void usage () {
 }
 
 void split_string (std::vector<std::string> &output_vector,const std::string &input_string, const char &input_delimiter) {
-  
   std::stringstream iss0(input_string);
   std::string token0;
   int count0 = 0;
   while (getline(iss0,token0,input_delimiter)) {
     output_vector.push_back(token0);
   }
-
 }
 
-void get_super_matrix (char* bam_file,\
-		       const string name,\
-		       const int bin_size,\
-		       const int clean_flag,\
-		       const int filter_flag,\
-		       const float upper,\
-		       const float lower) {
-  
+void get_super_matrix (
+  char* bam_file,\
+  const string name,\
+  const int bin_size,\
+  const int clean_flag,\
+  const int filter_flag,\
+  const float upper,\
+  const float lower) {
+
   unordered_map<string,int> chr_name;
   for (long long int i = 1; i <= 22; i++) {
     string out_chr_1 = "chr" + to_string(i);
@@ -85,92 +83,82 @@ void get_super_matrix (char* bam_file,\
   string last_chr;
 
   while ( reader.GetNextAlignmentCore(bam) ) {
-    
     if (bam.RefID >= 0) {
-      
       if (refs.at(bam.RefID).RefName != last_chr) {
-	cerr << "Going through " << refs.at(bam.RefID).RefName << " now\n";
-	last_chr = refs.at(bam.RefID).RefName;
+        cerr << "Going through " << refs.at(bam.RefID).RefName << " now\n";
+        last_chr = refs.at(bam.RefID).RefName;
       }
 
-      long long int Bin = bin_size*floor(bam.Position/bin_size);
-      string tag1 = refs.at(bam.RefID).RefName + ":" + to_string(Bin) + "-" + to_string(Bin + bin_size);
-      chr_hash[tag1] = bam.RefID;
+    long long int Bin = bin_size*floor(bam.Position/bin_size);
+    string tag1 = refs.at(bam.RefID).RefName + ":" + to_string(Bin) + "-" + to_string(Bin + bin_size);
+    chr_hash[tag1] = bam.RefID;
 
-      if (bam.MateRefID >= 0) {
+    if (bam.MateRefID >= 0) {
+      long long int MateBin = bin_size*floor(bam.MatePosition/bin_size);
+      string tag2 = refs.at(bam.MateRefID).RefName + ":" + to_string(MateBin) + "-" + to_string(MateBin + bin_size);
 
-	long long int MateBin = bin_size*floor(bam.MatePosition/bin_size);
-	string tag2 = refs.at(bam.MateRefID).RefName + ":" + to_string(MateBin) + "-" + to_string(MateBin + bin_size);
+      if (bam.RefID == bam.MateRefID) {
+        if (Bin < MateBin) {
+          if (clean_flag == 1) { 
+            if ((chr_name.count(refs.at(bam.RefID).RefName) > 0) && (chr_name.count(refs.at(bam.MateRefID).RefName)) > 0) {
+              data_map[tag1][tag2]++;
+              data_sum[tag1]++;
+              data_sum[tag2]++;
+            }
 
-	if (bam.RefID == bam.MateRefID) {
+          } else {
+        data_map[tag1][tag2]++;
+        data_sum[tag1]++;
+        data_sum[tag2]++;
 
-	  if (Bin < MateBin) {
+      }
 
-	    if (clean_flag == 1) {
-	         
-	      if ((chr_name.count(refs.at(bam.RefID).RefName) > 0) &&
-		  (chr_name.count(refs.at(bam.MateRefID).RefName)) > 0) {
-		  
-		data_map[tag1][tag2]++;
-		data_sum[tag1]++;
-		data_sum[tag2]++;
+    }
 
-	      }
+  } else {
 
-	    } else {
+    if (bam.RefID < bam.MateRefID) {
 
-	      data_map[tag1][tag2]++;
-	      data_sum[tag1]++;
-	      data_sum[tag2]++;
-
-	    }
-
-	  }
-	  
-	} else {
-
-	  if (bam.RefID < bam.MateRefID) {
-
-	    if (clean_flag == 1) {
-	          
-	      if ((chr_name.count(refs.at(bam.RefID).RefName) > 0) &&
+      if (clean_flag == 1) {
+            
+        if ((chr_name.count(refs.at(bam.RefID).RefName) > 0) &&
                   (chr_name.count(refs.at(bam.MateRefID).RefName)) > 0) {
 
-		data_map[tag1][tag2]++;
-		data_sum[tag1]++;
+    data_map[tag1][tag2]++;
+    data_sum[tag1]++;
                 data_sum[tag2]++;
 
               } 
 
-	    } else {
+      } else {
 
-	      data_map[tag1][tag2]++;
-	      data_sum[tag1]++;
-	      data_sum[tag2]++;
+        data_map[tag1][tag2]++;
+        data_sum[tag1]++;
+        data_sum[tag2]++;
 
-	    }
+      }
 
-	  }
-	    
-	}
+    }
+      
+  }
 
       } else {
       
-	if (clean_flag == 1) {
-	    
-	  if (chr_name.count(refs.at(bam.RefID).RefName) > 0) {
-
-	    SR_sum[tag1]++;
-	    data_sum[tag1]++;
-
-	  }
-
-	} else {
-
-	  SR_sum[tag1]++;
-	  data_sum[tag1]++;
+  if (clean_flag == 1) {
       
-	}
+    if (chr_name.count(refs.at(bam.RefID).RefName) > 0) {
+
+      SR_sum[tag1]++;
+      data_sum[tag1]++;
+
+    }
+
+  } else {
+
+    SR_sum[tag1]++;
+    data_sum[tag1]++;
+      
+  }
 
       }
 
@@ -204,7 +192,7 @@ void get_super_matrix (char* bam_file,\
   for (int i=0; i < count_vector.size(); i++) {
     
     if ((run_sum >= lower*total_N) &&
-	(lower_check == 0)) {
+  (lower_check == 0)) {
       lower_N = count_vector[i];
       lower_check = 1;
     }
@@ -231,7 +219,7 @@ void get_super_matrix (char* bam_file,\
     unordered_map<string,int>::iterator out_iter2;
     
     if ((data_sum[out_iter1->first] >= lower_N) &&
-	(data_sum[out_iter1->first] <= upper_N)) {
+  (data_sum[out_iter1->first] <= upper_N)) {
       
       SR_file_output << out_iter1->first << "\t" << SR_sum[out_iter1->first] << "\n";
 
@@ -240,12 +228,12 @@ void get_super_matrix (char* bam_file,\
     for (out_iter2 = data_map[out_iter1->first].begin(); out_iter2 != data_map[out_iter1->first].end(); out_iter2++) {
       
       if ((data_sum[out_iter1->first] >= lower_N) &&
-	  (data_sum[out_iter1->first] <= upper_N) &&
-	  (data_sum[out_iter2->first] >= lower_N) &&
-	  (data_sum[out_iter2->first] <= upper_N)) {
-	  
-	super_matrix_output << out_iter1->first << "\t" << out_iter2->first << "\t" << data_map[out_iter1->first][out_iter2->first] << "\n";
-	
+    (data_sum[out_iter1->first] <= upper_N) &&
+    (data_sum[out_iter2->first] >= lower_N) &&
+    (data_sum[out_iter2->first] <= upper_N)) {
+    
+  super_matrix_output << out_iter1->first << "\t" << out_iter2->first << "\t" << data_map[out_iter1->first][out_iter2->first] << "\n";
+  
       }
       
     }
@@ -261,17 +249,19 @@ int string_to_int (const string &input_string) {
 
   int value;
   stringstream convert(input_string);
-  if ( !(convert >> value) );
+  if ( !(convert >> value) ) {
+    ;
+  }
   return value;
 
 }
 
 void read_super_matrix_iterative_correction (const string super_matrix_file, \
-					     vector<double>& data_vector, \
-					     vector<string>& tag1_vector, \
-					     vector<string>& tag2_vector, \
-					     unordered_map<string,double>& bias_map, \
-					     int inter_flag) {
+               vector<double>& data_vector, \
+               vector<string>& tag1_vector, \
+               vector<string>& tag2_vector, \
+               unordered_map<string,double>& bias_map, \
+               int inter_flag) {
 
   std::time_t result = std::time(0);
 
@@ -294,14 +284,14 @@ void read_super_matrix_iterative_correction (const string super_matrix_file, \
     if (inter_flag == 1) {
     
       if (loc1[0] != loc2[0]) {
-	
-	data_vector.push_back(n);
-	tag1_vector.push_back(array[0]);
-	tag2_vector.push_back(array[1]);
+  
+  data_vector.push_back(n);
+  tag1_vector.push_back(array[0]);
+  tag2_vector.push_back(array[1]);
 
-	bias_map[array[0]] = 1;
-	bias_map[array[1]] = 1;
-	
+  bias_map[array[0]] = 1;
+  bias_map[array[1]] = 1;
+  
       }
 
     } else {
@@ -323,10 +313,10 @@ void read_super_matrix_iterative_correction (const string super_matrix_file, \
 
 }
 
-void read_SR_file (const string SR_file_name,			\
-		   vector<double>& SR_vector,			\
-		   vector<string>& SR_tag_vector,		\
-		   unordered_map<string,double>& bias_map) {
+void read_SR_file (const string SR_file_name,      \
+       vector<double>& SR_vector,      \
+       vector<string>& SR_tag_vector,    \
+       unordered_map<string,double>& bias_map) {
   
   cerr << "Reading in SR file now... ";
   
@@ -348,10 +338,10 @@ void read_SR_file (const string SR_file_name,			\
 
 }
 
-void iterative_correction(const string super_matrix,	\
-			  const string SR_file,		\
-			  const string name,		\
-			  const int iterations) {
+void iterative_correction(const string super_matrix,  \
+        const string SR_file,    \
+        const string name,    \
+        const int iterations) {
   
   vector<double> data_vector;
   vector<string> tag1_vector;
@@ -400,8 +390,8 @@ void iterative_correction(const string super_matrix,	\
     for (iter4 = bias_map.begin(); iter4 != bias_map.end(); iter4++) {
       bias_vector[iter4->first] = sum_hash[iter4->first] + SR_map[iter4->first];
       if ((sum_hash[iter4->first] + SR_map[iter4->first]) > 0) {
-	bias_sum += (sum_hash[iter4->first] + SR_map[iter4->first]);
-	bias_N++;
+  bias_sum += (sum_hash[iter4->first] + SR_map[iter4->first]);
+  bias_N++;
       }
     }
     
@@ -418,11 +408,11 @@ void iterative_correction(const string super_matrix,	\
       double temp = bias_vector[iter5->first];
       double new_val;
       if (temp == 0) {
-	new_val = 1;
+  new_val = 1;
       } else {
-	new_val = temp/bias_mean;
-	var_sum += (temp - bias_mean)*(temp - bias_mean);
-	var_N++;
+  new_val = temp/bias_mean;
+  var_sum += (temp - bias_mean)*(temp - bias_mean);
+  var_N++;
       }
       bias_vector[iter5->first] = new_val;      
     }
@@ -486,9 +476,9 @@ void iterative_correction(const string super_matrix,	\
 }
 
 void iterative_correction_no_SR (const string super_matrix,\
-				 const string name,\
-				 const int iterations,\
-				 int inter_flag) {
+         const string name,\
+         const int iterations,\
+         int inter_flag) {
   
   vector<double> data_vector;
   vector<string> tag1_vector;
@@ -541,8 +531,8 @@ void iterative_correction_no_SR (const string super_matrix,\
     for (iter4 = bias_map.begin(); iter4 != bias_map.end(); iter4++) {
       bias_vector[iter4->first] = sum_hash[iter4->first] + SR_map[iter4->first];
       if ((sum_hash[iter4->first] + SR_map[iter4->first]) > 0) {
-	bias_sum += (sum_hash[iter4->first] + SR_map[iter4->first]);
-	bias_N++;
+  bias_sum += (sum_hash[iter4->first] + SR_map[iter4->first]);
+  bias_N++;
       }
     }
 
@@ -559,11 +549,11 @@ void iterative_correction_no_SR (const string super_matrix,\
       double temp = bias_vector[iter5->first];
       double new_val;
       if (temp == 0) {
-	new_val = 1;
+  new_val = 1;
       } else {
-	new_val = temp/bias_mean;
-	var_sum += (temp - bias_mean)*(temp - bias_mean);
-	var_N++;
+  new_val = temp/bias_mean;
+  var_sum += (temp - bias_mean)*(temp - bias_mean);
+  var_N++;
       }
       bias_vector[iter5->first] = new_val;      
     }
@@ -626,9 +616,9 @@ void iterative_correction_no_SR (const string super_matrix,\
 
 }
 
-void read_super_matrix_eigen (const string super_matrix_file,		\
-			      unordered_map<string,unordered_map<string,double> >& ref_map, \
-			      unordered_map<string,int>& def_map) {
+void read_super_matrix_eigen (const string super_matrix_file,    \
+            unordered_map<string,unordered_map<string,double> >& ref_map, \
+            unordered_map<string,int>& def_map) {
   
   cerr << "Reading in super matrix file now... ";
 
@@ -652,7 +642,7 @@ void read_super_matrix_eigen (const string super_matrix_file,		\
 }
 
 void get_eigen (const string super_matrix_file,\
-		const string name) {
+    const string name) {
   
   unordered_map<string,unordered_map<string,double> > data_map;
   unordered_map<string,int> def_map;
@@ -672,29 +662,29 @@ void get_eigen (const string super_matrix_file,\
     for (int j=0; j < def_vector.size(); j++) {
       double val;
       if (data_map.count(def_vector[i]) > 0) {
-	if (data_map[def_vector[i]].count(def_vector[j]) > 0) {
-	  val = data_map[def_vector[i]][def_vector[j]];
-	} else {
-	  if (data_map.count(def_vector[j]) > 0) {
-	    if (data_map[def_vector[j]].count(def_vector[i]) > 0) {
-	      val = data_map[def_vector[j]][def_vector[i]];
-	    } else {
-	      val = 0;
-	    }
-	  } else {
-	    val = 0;
-	  }
-	}
+  if (data_map[def_vector[i]].count(def_vector[j]) > 0) {
+    val = data_map[def_vector[i]][def_vector[j]];
+  } else {
+    if (data_map.count(def_vector[j]) > 0) {
+      if (data_map[def_vector[j]].count(def_vector[i]) > 0) {
+        val = data_map[def_vector[j]][def_vector[i]];
       } else {
-	if (data_map.count(def_vector[j]) > 0) {
-	  if (data_map[def_vector[j]].count(def_vector[i]) > 0) {
-	    val = data_map[def_vector[j]][def_vector[i]];
-	  } else {
-	    val = 0;
-	  }
-	} else {
-	  val = 0;
-	}
+        val = 0;
+      }
+    } else {
+      val = 0;
+    }
+  }
+      } else {
+  if (data_map.count(def_vector[j]) > 0) {
+    if (data_map[def_vector[j]].count(def_vector[i]) > 0) {
+      val = data_map[def_vector[j]][def_vector[i]];
+    } else {
+      val = 0;
+    }
+  } else {
+    val = 0;
+  }
       }
   
       m(i,j) = val;
@@ -731,8 +721,8 @@ void get_eigen (const string super_matrix_file,\
 
 }
 
-void read_bias_vector (string bias_vector_file,				\
-		       unordered_map<string,vector<int> >& ref_map,	\
+void read_bias_vector (string bias_vector_file,        \
+           unordered_map<string,vector<int> >& ref_map,  \
                        unordered_map<string,unordered_map<int,double> >& bias_map) {
 
   std::time_t result = std::time(0);
@@ -784,7 +774,7 @@ void read_bias_vector (string bias_vector_file,				\
 }
 
 void read_super_matrix (string super_matrix_file,   \
-			unordered_map<string,unordered_map<string,int> >& ref_map) {
+      unordered_map<string,unordered_map<string,int> >& ref_map) {
 
   std::time_t result = std::time(0);
 
@@ -824,7 +814,7 @@ void read_super_matrix (string super_matrix_file,   \
 
 }
 
-void read_index_file (string index_file,				\
+void read_index_file (string index_file,        \
                       unordered_map<string,unordered_map<string,double> >& index_map) {
   
   std::time_t result = std::time(0);
@@ -865,21 +855,21 @@ void read_index_file (string index_file,				\
 
 }
 
-void find_parameters_1Mb (unordered_map<int,double>& m_hash,		\
-			  unordered_map<int,double>& r_hash,		\
-			  unordered_map<int,double>& var_hash,		\
-			  unordered_map<int,int>& N_hash,		\
-			  unordered_map<string,unordered_map<string,int> >& data_map, \
-			  unordered_map<string,vector<int> >& ref_map,	\
-			  unordered_map<string,unordered_map<int,double> >& bias_map, \
-			  unordered_map<string,unordered_map<string,double> >& exp_map, \
-			  unordered_map<string,unordered_map<string,double> >& pc1_map, \
-			  int bin_size,					\
-			  int max_size,					\
-			  double &inter_m,				\
-			  double &inter_r,				\
-			  double &submatrix,				\
-			  int &total_weight) {
+void find_parameters_1Mb (unordered_map<int,double>& m_hash,    \
+        unordered_map<int,double>& r_hash,    \
+        unordered_map<int,double>& var_hash,    \
+        unordered_map<int,int>& N_hash,    \
+        unordered_map<string,unordered_map<string,int> >& data_map, \
+        unordered_map<string,vector<int> >& ref_map,  \
+        unordered_map<string,unordered_map<int,double> >& bias_map, \
+        unordered_map<string,unordered_map<string,double> >& exp_map, \
+        unordered_map<string,unordered_map<string,double> >& pc1_map, \
+        int bin_size,          \
+        int max_size,          \
+        double &inter_m,        \
+        double &inter_r,        \
+        double &submatrix,        \
+        int &total_weight) {
 
   std::time_t result = std::time(0);
 
@@ -988,7 +978,7 @@ void find_parameters_1Mb (unordered_map<int,double>& m_hash,		\
               n = 0;
             }
 
-	    double pc1;
+      double pc1;
 
             if (pc1_map.count(tag1) == 1) {
               if (pc1_map[tag1].count(tag2) == 1) {
@@ -1037,7 +1027,7 @@ void find_parameters_1Mb (unordered_map<int,double>& m_hash,		\
 
       if (v == u) {
 
-	for (int i=0; i < (loc_array1.size() - 1); i++) {
+  for (int i=0; i < (loc_array1.size() - 1); i++) {
           for (int j=(i + 1); j < loc_array1.size(); j++) {
             string loc1 = static_cast<ostringstream*>( &(ostringstream() << loc_array1[i]) )->str();
             string loc2 = static_cast<ostringstream*>( &(ostringstream() << loc_array1[j]) )->str();
@@ -1102,7 +1092,7 @@ void find_parameters_1Mb (unordered_map<int,double>& m_hash,		\
               n = 0;
             }
 
-	    double pc1;
+      double pc1;
 
             if (pc1_map.count(tag1) == 1) {
               if (pc1_map[tag1].count(tag2) == 1) {
@@ -1244,9 +1234,9 @@ double get_corr_map (unordered_map<int,double>& data_map,       \
   for (int i=0;i < sort_N_vector.size(); i++) {
     if (i > 0) {
       if (sort_N_vector[i] == sort_N_vector[i - 1]) {
-	N_sort_map[sort_N_vector[i]] = new_last;
+  N_sort_map[sort_N_vector[i]] = new_last;
       } else {
-	N_sort_map[sort_N_vector[i]] = i;
+  N_sort_map[sort_N_vector[i]] = i;
         new_last = i;
       }
     } else {
@@ -1378,22 +1368,22 @@ double get_corr_vec (vector<double>& val_vector,        \
 
 }
 
-void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
-		      unordered_map<int,double>& r_hash,		\
-		      unordered_map<int,double>& var_hash,		\
-		      unordered_map<int,int>& N_hash,			\
-		      double &inter_m,					\
-		      double &inter_r,					\
-		      unordered_map<string,unordered_map<string,int> >& data_map, \
-		      unordered_map<string,vector<int> >& ref_map,	\
-		      unordered_map<string,unordered_map<int,double> >& bias_map, \
-		      unordered_map<string,unordered_map<string,double> >& exp_map, \
-		      unordered_map<string,unordered_map<string,double> >& pc1_map, \
-		      int bin_size,					\
-		      int max_size,					\
-		      int total_weight,					\
-		      double thresh,					\
-		      string name) {
+void find_breaks_1Mb (unordered_map<int,double>& m_hash,    \
+          unordered_map<int,double>& r_hash,    \
+          unordered_map<int,double>& var_hash,    \
+          unordered_map<int,int>& N_hash,      \
+          double &inter_m,          \
+          double &inter_r,          \
+          unordered_map<string,unordered_map<string,int> >& data_map, \
+          unordered_map<string,vector<int> >& ref_map,  \
+          unordered_map<string,unordered_map<int,double> >& bias_map, \
+          unordered_map<string,unordered_map<string,double> >& exp_map, \
+          unordered_map<string,unordered_map<string,double> >& pc1_map, \
+          int bin_size,          \
+          int max_size,          \
+          int total_weight,          \
+          double thresh,          \
+          string name) {
   
   double inter_var = inter_m*inter_m/inter_r + inter_m;
 
@@ -1471,7 +1461,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
             }
           }
 
-	  double pc1;
+    double pc1;
 
           if (pc1_map.count(tag1) == 1) {
             if (pc1_map[tag1].count(tag2) == 1) {
@@ -1515,7 +1505,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
 
           double term2 = 0;
 
-	  for (int k=1; k <= n; k++) {
+    for (int k=1; k <= n; k++) {
             double temp_val = log(n + inter_r - k);
             term2 += temp_val;
           }
@@ -1532,7 +1522,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
 
           int current_weight = 0;
 
-	  for (it0 = m_hash.begin(); it0 != m_hash.end(); it0++) {
+    for (it0 = m_hash.begin(); it0 != m_hash.end(); it0++) {
 
             int dist = it0->first;
 
@@ -1633,7 +1623,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
             int f_k1;
             int f_k2;
 
-	    for (int k=0; k< loc_array1.size(); k++) {
+      for (int k=0; k< loc_array1.size(); k++) {
 
               double new_sum = temp_sum + temp[k];
 
@@ -1663,7 +1653,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
 
         }
 
-	if (max_sum > t_thresh) {
+  if (max_sum > t_thresh) {
 
           t_thresh += thresh;
 
@@ -1700,14 +1690,14 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
 
         for (int i=0; i < (top_hits.size() - 1); i++) {
           vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[i],'_');
+    split_string(new_array1,top_hits[i],'_');
           int s1 = stoi(new_array1[1]);
           int e1 = stoi(new_array1[2]);
           int s2 = stoi(new_array1[4]);
           int e2 = stoi(new_array1[5]);
           for (int j=(i + 1); j < top_hits.size(); j++) {
             vector<std::string> new_array2;
-	    split_string(new_array2,top_hits[j],'_');
+      split_string(new_array2,top_hits[j],'_');
             int s3 = stoi(new_array2[1]);
             int e3 = stoi(new_array2[2]);
             int s4 = stoi(new_array2[4]);
@@ -1735,7 +1725,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
               }
             }
 
-	    if ((ot1 == 1) &&
+      if ((ot1 == 1) &&
                 (ot2 == 1)) {
               overlap_check = 1;
             }
@@ -1763,7 +1753,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
               new_top_sums.push_back(top_sums[i]);
 
               vector<std::string> new_array1;
-	      split_string(new_array1,top_hits[i],'_');
+        split_string(new_array1,top_hits[i],'_');
 
               int s1 = stoi(new_array1[1]);
               int e1 = stoi(new_array1[2]);
@@ -1783,12 +1773,12 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
             }
           }
 
-	  for (int i=0; i < top_hits.size(); i++) {
+    for (int i=0; i < top_hits.size(); i++) {
 
             if (i == (set + 1)) {
 
               vector<std::string> new_array1;
-	      split_string(new_array1,top_hits[i],'_');
+        split_string(new_array1,top_hits[i],'_');
               int s1 = stoi(new_array1[1]);
               int e1 = stoi(new_array1[2]);
               int s2 = stoi(new_array1[4]);
@@ -1813,7 +1803,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
 
           double t_thresh = thresh;
 
-	  while (new_check == 1) {
+    while (new_check == 1) {
 
             double max_sum = 0;
 
@@ -1871,7 +1861,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
                   }
                 }
 
-		if (temp_max > max_sum) {
+    if (temp_max > max_sum) {
                   max_sum = temp_max;
                   j1 = i;
                   j2 = j;
@@ -1910,7 +1900,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
               new_top_hits.push_back(new_string);
               new_top_sums.push_back(max_sum);
 
-	      pass = 1;
+        pass = 1;
 
             } else {
               break;
@@ -1918,7 +1908,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
 
           }
 
-	  double all_sum = 0;
+    double all_sum = 0;
           double all_new_sum = 0;
 
           for (int i = 0; i < top_sums.size(); i++) {
@@ -1936,17 +1926,17 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
             set++;
           }
 
-	  int final_overlap_check = 0;
+    int final_overlap_check = 0;
           for (int i=set; i < (top_hits.size() - 1); i++) {
             vector<std::string> new_array1;
-	    split_string(new_array1,top_hits[i],'_');
+      split_string(new_array1,top_hits[i],'_');
             int s1 = stoi(new_array1[1]);
             int e1 = stoi(new_array1[2]);
             int s2 = stoi(new_array1[4]);
             int e2 = stoi(new_array1[5]);
             for (int j=(i + 1); j < top_hits.size(); j++) {
               vector<std::string> new_array2;
-	      split_string(new_array2,top_hits[j],'_');
+        split_string(new_array2,top_hits[j],'_');
               int s3 = stoi(new_array2[1]);
               int e3 = stoi(new_array2[2]);
               int s4 = stoi(new_array2[4]);
@@ -2006,7 +1996,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
 
           for (int i=0; i < top_hits.size(); i++) {
             vector<std::string> new_array1;
-	    split_string(new_array1,top_hits[i],'_');
+      split_string(new_array1,top_hits[i],'_');
             int s1 = stoi(new_array1[1]);
             int e1 = stoi(new_array1[2]);
             int s2 = stoi(new_array1[4]);
@@ -2019,16 +2009,16 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
             }
           }
 
-	  for (int i=0; i < (top_hits.size() - 1); i++) {
+    for (int i=0; i < (top_hits.size() - 1); i++) {
             vector<std::string> new_array1;
-	    split_string(new_array1,top_hits[i],'_');
+      split_string(new_array1,top_hits[i],'_');
             int s1 = stoi(new_array1[1]);
             int e1 = stoi(new_array1[2]);
             int s2 = stoi(new_array1[4]);
             int e2 = stoi(new_array1[5]);
             for (int j=(i + 1); j < top_hits.size(); j++) {
               vector<std::string> new_array2;
-	      split_string(new_array2,top_hits[j],'_');
+        split_string(new_array2,top_hits[j],'_');
               int s3 = stoi(new_array2[1]);
               int e3 = stoi(new_array2[2]);
               int s4 = stoi(new_array2[4]);
@@ -2077,7 +2067,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
                 }
 
                 vector<std::string> new_array3;
-		split_string(new_array3,top_hits[k],'_');
+    split_string(new_array3,top_hits[k],'_');
                 int s5 = stoi(new_array3[1]);
                 int e5 = stoi(new_array3[2]);
                 int s6 = stoi(new_array3[4]);
@@ -2090,7 +2080,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
                 }
               }
 
-	      if ((all_new_sum > over_max) &&
+        if ((all_new_sum > over_max) &&
                   (odds_sum >= thresh)) {
                 over_max = all_new_sum;
                 over_i = i;
@@ -2100,15 +2090,15 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
             }
           }
 
-	  if (over_check > 0) {
+    if (over_check > 0) {
             vector<std::string> new_array1;
-	    split_string(new_array1,top_hits[over_i],'_');
+      split_string(new_array1,top_hits[over_i],'_');
             int s1 = stoi(new_array1[1]);
             int e1 = stoi(new_array1[2]);
             int s2 = stoi(new_array1[4]);
             int e2 = stoi(new_array1[5]);
             vector<std::string> new_array2;
-	    split_string(new_array2,top_hits[over_j],'_');
+      split_string(new_array2,top_hits[over_j],'_');
             int s3 = stoi(new_array2[1]);
             int e3 = stoi(new_array2[2]);
             int s4 = stoi(new_array2[4]);
@@ -2141,7 +2131,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
             vector<string> new_top_hits;
             new_top_hits.push_back(new_string);
 
-	    for (int i=0; i < top_hits.size(); i++) {
+      for (int i=0; i < top_hits.size(); i++) {
               if ((i != over_i) &&
                   (i != over_j)) {
                 new_top_hits.push_back(top_hits[i]);
@@ -2158,7 +2148,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
 
       for (int i=0; i < top_hits.size(); i++) {
         vector<std::string> new_array1;
-	split_string(new_array1,top_hits[i],'_');
+  split_string(new_array1,top_hits[i],'_');
         int s1 = stoi(new_array1[1]);
         int e1 = stoi(new_array1[2]);
         int s2 = stoi(new_array1[4]);
@@ -2221,7 +2211,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
           }
         }
 
-	double i_cor = get_corr_map(i_sum,i_N);
+  double i_cor = get_corr_map(i_sum,i_N);
         double j_cor = get_corr_map(j_sum,j_N);
         double i_log_cor = get_corr_map(i_log_sum,i_N);
         double j_log_cor = get_corr_map(j_log_sum,j_N);
@@ -2253,7 +2243,7 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
         }
 
         break_output << odds_sum << "\t" << chr1 << "\t" << loc_array1[s1] << "\t" << (loc_array1[e1] + bin_size) << "\t" << strand1 << "\t" << chr2 << "\t" << loc_array2[s2] << "\t" << (loc_array2[e2] + bin_size) << "\t" << strand2 << "\n";
-	
+  
       }
 
     }
@@ -2264,12 +2254,12 @@ void find_breaks_1Mb (unordered_map<int,double>& m_hash,		\
 }
 
 void get_1Mb_odds_ratio_inter (string super_matrix_file,\
-			       string bias_vector_file,\
-			       char* exp_file,	       \
-			       string pc1_file,	       \
-			       int bin_size,\
-			       int max_size,\
-			       string name) {
+             string bias_vector_file,\
+             char* exp_file,         \
+             string pc1_file,         \
+             int bin_size,\
+             int max_size,\
+             string name) {
   
   unordered_map<string,vector<int> > ref_map;
   unordered_map<string,unordered_map<int,double> > bias_map;
@@ -2305,7 +2295,7 @@ void get_1Mb_odds_ratio_inter (string super_matrix_file,\
 }
 
 vector<string> read_blocks (string block_file,   \
-			    int max_size) {
+          int max_size) {
   
   vector<string> temp_array;
   
@@ -2352,16 +2342,16 @@ vector<string> read_blocks (string block_file,   \
 
       int start3;
       if ((stoi(array2[2]) - max_size) > 0) {
-	start3 = stoi(array2[2]) - max_size;
+  start3 = stoi(array2[2]) - max_size;
       } else {
-	start3 = 0;
+  start3 = 0;
       }
       int end3 = stoi(array2[3]) + max_size;
       int start4;
       if ((stoi(array2[6]) - max_size) > 0) {
-	start4 = stoi(array2[6]) - max_size;
+  start4 = stoi(array2[6]) - max_size;
       } else {
-	start4 = 0;
+  start4 = 0;
       }
       int end4 = stoi(array2[7]) + max_size;
 
@@ -2378,7 +2368,7 @@ vector<string> read_blocks (string block_file,   \
               }
             } else {
               if (start2 < end4) {
-		over_check = 1;
+    over_check = 1;
               }
             }
           }
@@ -2395,12 +2385,12 @@ vector<string> read_blocks (string block_file,   \
             }
           }
         }
-	
-	if (over_check == 1) {
+  
+  if (over_check == 1) {
           test = 1;
-	  
+    
           vector<string> new_temp_array;
-	  
+    
           for (int k=0; k < temp_array.size(); k++) {
             if ((k != i) &&
                 (k != j)) {
@@ -2413,30 +2403,30 @@ vector<string> read_blocks (string block_file,   \
           } else {
             new_start1 = static_cast<ostringstream*>( &(ostringstream() << start3) )->str();
           }
-	  
+    
           string new_end1;
           if (end1 > end3) {
             new_end1 = static_cast<ostringstream*>( &(ostringstream() << end1) )->str();
           } else {
             new_end1 = static_cast<ostringstream*>( &(ostringstream() << end3) )->str();
           }
-	  
-	  string new_start2;
+    
+    string new_start2;
           if (start2 < start4) {
             new_start2 = static_cast<ostringstream*>( &(ostringstream() << start2) )->str();
           } else {
             new_start2 = static_cast<ostringstream*>( &(ostringstream() << start4) )->str();
           }
-	  
+    
           string new_end2;
           if (end2 > end4) {
             new_end2 = static_cast<ostringstream*>( &(ostringstream() << end2) )->str();
           } else {
             new_end2 = static_cast<ostringstream*>( &(ostringstream() << end4) )->str();
           }
-	  
+    
           string new_string = "-1\t" + chr1 + "\t" + new_start1 + "\t" + new_end1 + "\t-1\t" + chr2 + "\t" + new_start2 + "\t" + new_end2 + "\t-1";
-	  
+    
           new_temp_array.push_back(new_string);
           temp_array = new_temp_array;
           break;
@@ -2457,20 +2447,20 @@ vector<string> read_blocks (string block_file,   \
 
 }
 
-void find_breaks_100kb_inter (vector<string>& block_data,		\
-			      unordered_map<int,double>& m_hash,	\
-			      unordered_map<int,double>& r_hash,	\
-			      unordered_map<int,int>& N_hash,		\
-			      double &inter_m,				\
-			      double &inter_r,				\
-			      unordered_map<string,unordered_map<string,int> >& data_map, \
-			      unordered_map<string,vector<int> >& ref_map, \
-			      unordered_map<string,unordered_map<int,double> >& bias_map, \
-			      int bin_size,				\
-			      int max_size,				\
-			      int total_weight,				\
-			      double thresh,				\
-			      string name) {
+void find_breaks_100kb_inter (vector<string>& block_data,    \
+            unordered_map<int,double>& m_hash,  \
+            unordered_map<int,double>& r_hash,  \
+            unordered_map<int,int>& N_hash,    \
+            double &inter_m,        \
+            double &inter_r,        \
+            unordered_map<string,unordered_map<string,int> >& data_map, \
+            unordered_map<string,vector<int> >& ref_map, \
+            unordered_map<string,unordered_map<int,double> >& bias_map, \
+            int bin_size,        \
+            int max_size,        \
+            int total_weight,        \
+            double thresh,        \
+            string name) {
   
   unordered_map<int,double> fact_hash;
   fact_hash[0] = 0;
@@ -2539,7 +2529,7 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
 
         double n;
 
-	if (data_map.count(tag1) == 1) {
+  if (data_map.count(tag1) == 1) {
           if (data_map[tag1].count(tag2) == 1) {
             n = data_map[tag1][tag2];
           } else {
@@ -2570,7 +2560,7 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
           test_m = b1*b2*inter_m;
         }
 
-	double term1 = inter_r*log(inter_r/(inter_r + test_m));
+  double term1 = inter_r*log(inter_r/(inter_r + test_m));
 
         double term2 = 0;
 
@@ -2591,7 +2581,7 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
 
         int current_weight = 0;
  
-	for (it0 = m_hash.begin(); it0 != m_hash.end(); it0++) {
+  for (it0 = m_hash.begin(); it0 != m_hash.end(); it0++) {
 
           int dist = it0->first;
 
@@ -2621,7 +2611,7 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
 
           }
 
-	}
+  }
 
         double final_intra_p = intra_p/current_weight;
 
@@ -2667,7 +2657,7 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
 
         vector<double> temp(odds_matrix[0].size(),init_val);
 
-	for (int j=i; j < odds_matrix.size(); j++) {
+  for (int j=i; j < odds_matrix.size(); j++) {
 
           for (int k=0; k < odds_matrix[0].size(); k++) {
 
@@ -2684,7 +2674,7 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
           int f_k1;
           int f_k2;
 
-	  for (int k=0; k < odds_matrix[0].size(); k++) {
+    for (int k=0; k < odds_matrix[0].size(); k++) {
 
             double new_sum = temp_sum + temp[k];
 
@@ -2753,20 +2743,20 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
 
       for (int i=0; i < (top_hits.size() - 1); i++) {
         vector<std::string> new_array1;
-	split_string(new_array1,top_hits[i],'_');
+  split_string(new_array1,top_hits[i],'_');
         int s1 = stoi(new_array1[1]);
         int e1 = stoi(new_array1[2]);
         int s2 = stoi(new_array1[4]);
         int e2 = stoi(new_array1[5]);
         for (int j=(i + 1); j < top_hits.size(); j++) {
           vector<std::string> new_array2;
-	  split_string(new_array2,top_hits[j],'_');
+    split_string(new_array2,top_hits[j],'_');
           int s3 = stoi(new_array2[1]);
           int e3 = stoi(new_array2[2]);
           int s4 = stoi(new_array2[4]);
           int e4 = stoi(new_array2[5]);
 
-	  int ot1 = 0;
+    int ot1 = 0;
           if (s1 < s3) {
             if (e1 >= s3) {
               ot1 = 1;
@@ -2817,14 +2807,14 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
             new_top_sums.push_back(top_sums[i]);
 
             vector<std::string> new_array1;
-	    split_string(new_array1,top_hits[i],'_');
+      split_string(new_array1,top_hits[i],'_');
 
             int s1 = stoi(new_array1[1]);
             int e1 = stoi(new_array1[2]);
             int s2 = stoi(new_array1[4]);
             int e2 = stoi(new_array1[5]);
 
-	    for (int k = s2; k <= e2; k++) {
+      for (int k = s2; k <= e2; k++) {
               for (int j = s1; j <= e1; j++) {
 
                 double change = -5;
@@ -2842,8 +2832,8 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
           if (i == (set + 1)) {
 
             vector<std::string> new_array1;
-	    split_string(new_array1,top_hits[i],'_');
-	    
+      split_string(new_array1,top_hits[i],'_');
+      
             int s1 = stoi(new_array1[1]);
             int e1 = stoi(new_array1[2]);
             int s2 = stoi(new_array1[4]);
@@ -2860,8 +2850,8 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
           }
         }
 
-	int new_check = 1;
-	int pass = 0;
+  int new_check = 1;
+  int pass = 0;
 
         while (new_check == 1) {
 
@@ -2878,9 +2868,9 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
 
             vector<double> temp(odds_matrix[0].size(),init_val);
 
-	    for (int j=i; j < odds_matrix.size(); j++) {
+      for (int j=i; j < odds_matrix.size(); j++) {
 
-	      for (int k=0; k < odds_matrix[0].size(); k++) {
+        for (int k=0; k < odds_matrix[0].size(); k++) {
 
                 if (pass == 0) {
 
@@ -2903,7 +2893,7 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
               int f_k1;
               int f_k2;
 
-	      for (int k=0; k < odds_matrix[0].size(); k++) {
+        for (int k=0; k < odds_matrix[0].size(); k++) {
 
                 double new_sum = temp_sum + temp[k];
 
@@ -2932,7 +2922,7 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
             }
           }
 
-	  if (max_sum > t_thresh) {
+    if (max_sum > t_thresh) {
 
             t_thresh += thresh;
 
@@ -2956,7 +2946,7 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
             string j_strand = "s";
             string k_strand = "s";
 
-	    new_top_hits.push_back(new_string);
+      new_top_hits.push_back(new_string);
             new_top_sums.push_back(max_sum);
 
             pass = 1;
@@ -2964,78 +2954,78 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
           } else {
             break;
           }
-	}
+  }
 
-	double all_sum = 0;
-	double all_new_sum = 0;
-	
-	for (int i = 0; i < top_sums.size(); i++) {
-	  all_sum += top_sums[i];
-	}
-	
-	for (int i=0; i < new_top_sums.size(); i++) {
-	  all_new_sum += new_top_sums[i];
-	}
-	
-	if (all_new_sum > all_sum) {
-	  top_hits = new_top_hits;
-	  top_sums = new_top_sums;
-	  
-	} else {
-	  set++;
-	}
-	
-	int final_overlap_check = 0;
-	for (int i=set; i < (top_hits.size() - 1); i++) {
-	  vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[i],'_');
+  double all_sum = 0;
+  double all_new_sum = 0;
+  
+  for (int i = 0; i < top_sums.size(); i++) {
+    all_sum += top_sums[i];
+  }
+  
+  for (int i=0; i < new_top_sums.size(); i++) {
+    all_new_sum += new_top_sums[i];
+  }
+  
+  if (all_new_sum > all_sum) {
+    top_hits = new_top_hits;
+    top_sums = new_top_sums;
+    
+  } else {
+    set++;
+  }
+  
+  int final_overlap_check = 0;
+  for (int i=set; i < (top_hits.size() - 1); i++) {
+    vector<std::string> new_array1;
+    split_string(new_array1,top_hits[i],'_');
 
-	  int s1 = stoi(new_array1[1]);
-	  int e1 = stoi(new_array1[2]);
-	  int s2 = stoi(new_array1[4]);
-	  int e2 = stoi(new_array1[5]);
-	  for (int j=(i + 1); j < top_hits.size(); j++) {
-	    vector<std::string> new_array2;
-	    split_string(new_array2,top_hits[j],'_');
+    int s1 = stoi(new_array1[1]);
+    int e1 = stoi(new_array1[2]);
+    int s2 = stoi(new_array1[4]);
+    int e2 = stoi(new_array1[5]);
+    for (int j=(i + 1); j < top_hits.size(); j++) {
+      vector<std::string> new_array2;
+      split_string(new_array2,top_hits[j],'_');
 
-	    int s3 = stoi(new_array2[1]);
-	    int e3 = stoi(new_array2[2]);
-	    int s4 = stoi(new_array2[4]);
-	    int e4 = stoi(new_array2[5]);
-	    
-	    int ot1 = 0;
-	    if (s1 < s3) {
-	      if (e1 >= s3) {
-		ot1 = 1;
-	      }
-	    } else {
-	      if (s1 <= e3) {
-		ot1 = 1;
-	      }
-	    }
-	    
-	    int ot2 = 0;
-	    if (s2 < s4) {
-	      if (e2 >= s4) {
-		ot2 = 1;
-	      }
-	    } else {
-	      if (s2 <= e4) {
-		ot2 = 1;
-	      }
-	    }
-	    
-	    if ((ot1 == 1) &&
-		(ot2 == 1)) {
-	      final_overlap_check = 1;
-	    }
-	  }
-	}
-	
-	if (final_overlap_check == 0) {
-	  break;
-	}
-	
+      int s3 = stoi(new_array2[1]);
+      int e3 = stoi(new_array2[2]);
+      int s4 = stoi(new_array2[4]);
+      int e4 = stoi(new_array2[5]);
+      
+      int ot1 = 0;
+      if (s1 < s3) {
+        if (e1 >= s3) {
+    ot1 = 1;
+        }
+      } else {
+        if (s1 <= e3) {
+    ot1 = 1;
+        }
+      }
+      
+      int ot2 = 0;
+      if (s2 < s4) {
+        if (e2 >= s4) {
+    ot2 = 1;
+        }
+      } else {
+        if (s2 <= e4) {
+    ot2 = 1;
+        }
+      }
+      
+      if ((ot1 == 1) &&
+    (ot2 == 1)) {
+        final_overlap_check = 1;
+      }
+    }
+  }
+  
+  if (final_overlap_check == 0) {
+    break;
+  }
+  
       }
       
     }
@@ -3044,198 +3034,198 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
     
     while (stop_test == 0) {
       if (top_hits.size() > 1) {
-	int over_check = 0;
-	double over_max = 0;
-	double over_min = -10000000;
-	int over_i;
-	int over_j;
+  int over_check = 0;
+  double over_max = 0;
+  double over_min = -10000000;
+  int over_i;
+  int over_j;
 
-	double all_sum = 0;
-	vector<vector<double> > all_odds_matrix = ori_odds_matrix;
-	
-	for (int i=0; i < top_hits.size(); i++) {
-	  vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[i],'_');
+  double all_sum = 0;
+  vector<vector<double> > all_odds_matrix = ori_odds_matrix;
+  
+  for (int i=0; i < top_hits.size(); i++) {
+    vector<std::string> new_array1;
+    split_string(new_array1,top_hits[i],'_');
 
-	  int s1 = stoi(new_array1[1]);
-	  int e1 = stoi(new_array1[2]);
-	  int s2 = stoi(new_array1[4]);
-	  int e2 = stoi(new_array1[5]);
-	  for (int k = s1; k <= e1; k++) {
-	    for (int l = s2; l <= e2; l++) {
-	      all_sum += all_odds_matrix[k][l];
-	      all_odds_matrix[k][l] = -5;
-	    }
-	  }
-	}
-	
-	for (int i=0; i < (top_hits.size() - 1); i++) {
-	  vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[i],'_');
+    int s1 = stoi(new_array1[1]);
+    int e1 = stoi(new_array1[2]);
+    int s2 = stoi(new_array1[4]);
+    int e2 = stoi(new_array1[5]);
+    for (int k = s1; k <= e1; k++) {
+      for (int l = s2; l <= e2; l++) {
+        all_sum += all_odds_matrix[k][l];
+        all_odds_matrix[k][l] = -5;
+      }
+    }
+  }
+  
+  for (int i=0; i < (top_hits.size() - 1); i++) {
+    vector<std::string> new_array1;
+    split_string(new_array1,top_hits[i],'_');
 
-	  int s1 = stoi(new_array1[1]);
-	  int e1 = stoi(new_array1[2]);
-	  int s2 = stoi(new_array1[4]);
-	  int e2 = stoi(new_array1[5]);
+    int s1 = stoi(new_array1[1]);
+    int e1 = stoi(new_array1[2]);
+    int s2 = stoi(new_array1[4]);
+    int e2 = stoi(new_array1[5]);
 
-	  for (int j=(i + 1); j < top_hits.size(); j++) {
-	    vector<std::string> new_array2;
-	    split_string(new_array2,top_hits[j],'_');
+    for (int j=(i + 1); j < top_hits.size(); j++) {
+      vector<std::string> new_array2;
+      split_string(new_array2,top_hits[j],'_');
 
-	    int s3 = stoi(new_array2[1]);
-	    int e3 = stoi(new_array2[2]);
-	    int s4 = stoi(new_array2[4]);
-	    int e4 = stoi(new_array2[5]);
-	    int new_start1;
-	    if (s1 < s3) {
-	      new_start1 = s1;
-	    } else {
-	      new_start1 = s3;
-	    }
-	    int new_end1;
-	    if (e1 > e3) {
-	      new_end1 = e1;
-	    } else {
-	      new_end1 = e3;
-	    }
-	    int new_start2;
-	    if (s2 < s4) {
-	      new_start2 = s2;
-	    } else {
-	      new_start2 = s4;
-	    }
-	    
-	    int new_end2;
-	    if (e2 > e4) {
-	      new_end2 = e2;
-	    } else {
-	      new_end2 = e4;
-	    }
-	    
-	    vector<vector<double> > all_new_odds_matrix = ori_odds_matrix;
-	    
-	    double all_new_sum = 0;
-	    double odds_sum = 0;
-	    for (int k = new_start1; k <= new_end1; k++) {
-	      for (int l = new_start2; l <= new_end2; l++) {
-		all_new_sum += all_new_odds_matrix[k][l];
-		all_new_odds_matrix[k][l] = 0;
-		odds_sum += ori_odds_matrix[k][l];
-	      }
-	    }
-	    
-	    for (int k=0; k < top_hits.size(); k++) {
-	      if ((k == i) ||
-		  (k == j)) {
-		continue;
-	      }
-	      vector<std::string> new_array3;
-	      split_string(new_array3,top_hits[k],'_');
-
-	      int s5 = stoi(new_array3[1]);
-	      int e5 = stoi(new_array3[2]);
-	      int s6 = stoi(new_array3[4]);
-	      int e6 = stoi(new_array3[5]);
-	      for (int l = s5; l <= e5; l++) {
-		for (int m = s6; m <= e6; m++) {
-		  all_new_sum += all_new_odds_matrix[l][m];
-		  all_new_odds_matrix[l][m] = 0;
-		}
-	      }
-	    }
-	    
-	    double loss = all_new_sum - all_sum;
-	    
-	    if ((all_new_sum >= over_max) &&
-		(odds_sum >= thresh)) {
-	      over_min = loss;
-	      over_max = all_new_sum;
-	      over_i = i;
-	      over_j = j;
-	      over_check++;
-	    }
-	  }
-	}
-	
-	if (over_check > 0) {
-	  vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[over_i],'_');
-	  int s1 = stoi(new_array1[1]);
-	  int e1 = stoi(new_array1[2]);
-	  int s2 = stoi(new_array1[4]);
-	  int e2 = stoi(new_array1[5]);
-	  vector<std::string> new_array2;
-	  split_string(new_array2,top_hits[over_j],'_');
-	  int s3 = stoi(new_array2[1]);
-	  int e3 = stoi(new_array2[2]);
-	  int s4 = stoi(new_array2[4]);
-	  int e4 = stoi(new_array2[5]);
-	  int ns1;
-	  string new_start1;
-	  if (s1 <= s3) {
-	    new_start1 = static_cast<ostringstream*>( &(ostringstream() << s1) )->str();
-	    ns1 = s1;
-	  } else {
-	    new_start1 = static_cast<ostringstream*>( &(ostringstream() << s3) )->str();
-	    ns1 = s3;
-	  }
-	  int ne1;
-	  string new_end1;
-	  if (e1 >= e3) {
-	    new_end1 = static_cast<ostringstream*>( &(ostringstream() << e1) )->str();
-	    ne1 = e1;
-	  } else {
-	    new_end1 = static_cast<ostringstream*>( &(ostringstream() << e3) )->str();
-	    ne1 = e3;
-	  }
-	  int ns2;
-	  string new_start2;
-	  if (s2 <= s4) {
-	    new_start2 = static_cast<ostringstream*>( &(ostringstream() << s2) )->str();
-	    ns2 = s2;
-	  } else {
-	    new_start2 = static_cast<ostringstream*>( &(ostringstream() << s4) )->str();
-	    ns2 = s4;
-	  }
-	  int ne2;
-	  string new_end2;
-	  if (e2 >= e4) {
-	    new_end2 = static_cast<ostringstream*>( &(ostringstream() << e2) )->str();
-	    ne2 = e2;
-	  } else {
-	    new_end2 = static_cast<ostringstream*>( &(ostringstream() << e4) )->str();
-	    ne2 = e4;
-	  }
-	  double new_sum = 0;
-	  for (int k = ns1; k <= ne1; k++) {
-	    for (int l = ns2; l <= ne2; l++) {
-	      odds_matrix[k][l] = -5;
-	      new_sum += ori_odds_matrix[k][l];
-	    }
-	  }
-	  string new_string = new_array1[0] + "_" + new_start1 + "_" + new_end1 + "_" + new_array1[3] + "_" + new_start2 + "_" + new_end2;
-	  
-	  string j_strand = "s";
-	  string k_strand = "s";
-	  
-	  vector<string> new_top_hits;
-	  vector<double> new_top_sums;
-	  new_top_hits.push_back(new_string);
-	  new_top_sums.push_back(new_sum);
-	  for (int i=0; i < top_hits.size(); i++) {
-	    if ((i != over_i) &&
-		(i != over_j)) {
-	      new_top_hits.push_back(top_hits[i]);
-	      new_top_sums.push_back(top_sums[i]);
-	    }
-	  }
-	  top_hits = new_top_hits;
-	  top_sums = new_top_sums;
-	} else {
-	  stop_test = 1;
-	}
+      int s3 = stoi(new_array2[1]);
+      int e3 = stoi(new_array2[2]);
+      int s4 = stoi(new_array2[4]);
+      int e4 = stoi(new_array2[5]);
+      int new_start1;
+      if (s1 < s3) {
+        new_start1 = s1;
       } else {
-	stop_test = 1;
+        new_start1 = s3;
+      }
+      int new_end1;
+      if (e1 > e3) {
+        new_end1 = e1;
+      } else {
+        new_end1 = e3;
+      }
+      int new_start2;
+      if (s2 < s4) {
+        new_start2 = s2;
+      } else {
+        new_start2 = s4;
+      }
+      
+      int new_end2;
+      if (e2 > e4) {
+        new_end2 = e2;
+      } else {
+        new_end2 = e4;
+      }
+      
+      vector<vector<double> > all_new_odds_matrix = ori_odds_matrix;
+      
+      double all_new_sum = 0;
+      double odds_sum = 0;
+      for (int k = new_start1; k <= new_end1; k++) {
+        for (int l = new_start2; l <= new_end2; l++) {
+    all_new_sum += all_new_odds_matrix[k][l];
+    all_new_odds_matrix[k][l] = 0;
+    odds_sum += ori_odds_matrix[k][l];
+        }
+      }
+      
+      for (int k=0; k < top_hits.size(); k++) {
+        if ((k == i) ||
+      (k == j)) {
+    continue;
+        }
+        vector<std::string> new_array3;
+        split_string(new_array3,top_hits[k],'_');
+
+        int s5 = stoi(new_array3[1]);
+        int e5 = stoi(new_array3[2]);
+        int s6 = stoi(new_array3[4]);
+        int e6 = stoi(new_array3[5]);
+        for (int l = s5; l <= e5; l++) {
+    for (int m = s6; m <= e6; m++) {
+      all_new_sum += all_new_odds_matrix[l][m];
+      all_new_odds_matrix[l][m] = 0;
+    }
+        }
+      }
+      
+      double loss = all_new_sum - all_sum;
+      
+      if ((all_new_sum >= over_max) &&
+    (odds_sum >= thresh)) {
+        over_min = loss;
+        over_max = all_new_sum;
+        over_i = i;
+        over_j = j;
+        over_check++;
+      }
+    }
+  }
+  
+  if (over_check > 0) {
+    vector<std::string> new_array1;
+    split_string(new_array1,top_hits[over_i],'_');
+    int s1 = stoi(new_array1[1]);
+    int e1 = stoi(new_array1[2]);
+    int s2 = stoi(new_array1[4]);
+    int e2 = stoi(new_array1[5]);
+    vector<std::string> new_array2;
+    split_string(new_array2,top_hits[over_j],'_');
+    int s3 = stoi(new_array2[1]);
+    int e3 = stoi(new_array2[2]);
+    int s4 = stoi(new_array2[4]);
+    int e4 = stoi(new_array2[5]);
+    int ns1;
+    string new_start1;
+    if (s1 <= s3) {
+      new_start1 = static_cast<ostringstream*>( &(ostringstream() << s1) )->str();
+      ns1 = s1;
+    } else {
+      new_start1 = static_cast<ostringstream*>( &(ostringstream() << s3) )->str();
+      ns1 = s3;
+    }
+    int ne1;
+    string new_end1;
+    if (e1 >= e3) {
+      new_end1 = static_cast<ostringstream*>( &(ostringstream() << e1) )->str();
+      ne1 = e1;
+    } else {
+      new_end1 = static_cast<ostringstream*>( &(ostringstream() << e3) )->str();
+      ne1 = e3;
+    }
+    int ns2;
+    string new_start2;
+    if (s2 <= s4) {
+      new_start2 = static_cast<ostringstream*>( &(ostringstream() << s2) )->str();
+      ns2 = s2;
+    } else {
+      new_start2 = static_cast<ostringstream*>( &(ostringstream() << s4) )->str();
+      ns2 = s4;
+    }
+    int ne2;
+    string new_end2;
+    if (e2 >= e4) {
+      new_end2 = static_cast<ostringstream*>( &(ostringstream() << e2) )->str();
+      ne2 = e2;
+    } else {
+      new_end2 = static_cast<ostringstream*>( &(ostringstream() << e4) )->str();
+      ne2 = e4;
+    }
+    double new_sum = 0;
+    for (int k = ns1; k <= ne1; k++) {
+      for (int l = ns2; l <= ne2; l++) {
+        odds_matrix[k][l] = -5;
+        new_sum += ori_odds_matrix[k][l];
+      }
+    }
+    string new_string = new_array1[0] + "_" + new_start1 + "_" + new_end1 + "_" + new_array1[3] + "_" + new_start2 + "_" + new_end2;
+    
+    string j_strand = "s";
+    string k_strand = "s";
+    
+    vector<string> new_top_hits;
+    vector<double> new_top_sums;
+    new_top_hits.push_back(new_string);
+    new_top_sums.push_back(new_sum);
+    for (int i=0; i < top_hits.size(); i++) {
+      if ((i != over_i) &&
+    (i != over_j)) {
+        new_top_hits.push_back(top_hits[i]);
+        new_top_sums.push_back(top_sums[i]);
+      }
+    }
+    top_hits = new_top_hits;
+    top_sums = new_top_sums;
+  } else {
+    stop_test = 1;
+  }
+      } else {
+  stop_test = 1;
       }
     }
     for (int i=0; i < top_hits.size(); i++) {
@@ -3267,41 +3257,41 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
       
       double odds_sum = 0;
       for (int k=s1; k <= e1; k++) {
-	
-	int i_bin = k - s1;
-	i_N[i_bin]++;
-	
-	for (int j=s2; j <= e2; j++) {
-	  odds_sum += ori_odds_matrix[k][j];
-	  
-	  int j_bin = j - s2;
-	  int rev_j_bin = e2 - j;
-	  j_N[j_bin]++;
-	  
-	  int diag1_bin = i_bin + j_bin;
-	  int diag2_bin = i_bin + rev_j_bin;
-	  
-	  diag1_N[diag1_bin]++;
-	  diag2_N[diag2_bin]++;
-	  
-	  all_diag1_N.push_back(diag1_bin);
-	  all_diag2_N.push_back(diag2_bin);
-	  
-	  i_sum[i_bin] += norm_matrix[k][j];
-	  j_sum[j_bin] += norm_matrix[k][j];
-	  i_log_sum[i_bin] += log(norm_matrix[k][j] + 0.1);
-	  j_log_sum[j_bin] += log(norm_matrix[k][j] + 0.1);
-	  diag1_sum[diag1_bin] += norm_matrix[k][j];
-	  diag2_sum[diag2_bin] += norm_matrix[k][j];
-	  diag1_log_sum[diag1_bin] += log(norm_matrix[k][j] + 0.1);
-	  diag2_log_sum[diag2_bin] += log(norm_matrix[k][j] + 0.1);
-	  diag1_bin_sum[diag1_bin] += 1;
-	  diag2_bin_sum[diag2_bin] += 1;
-	  all_diag1.push_back(norm_matrix[k][j]);
-	  all_diag2.push_back(norm_matrix[k][j]);
-	  
-	  
-	}
+  
+  int i_bin = k - s1;
+  i_N[i_bin]++;
+  
+  for (int j=s2; j <= e2; j++) {
+    odds_sum += ori_odds_matrix[k][j];
+    
+    int j_bin = j - s2;
+    int rev_j_bin = e2 - j;
+    j_N[j_bin]++;
+    
+    int diag1_bin = i_bin + j_bin;
+    int diag2_bin = i_bin + rev_j_bin;
+    
+    diag1_N[diag1_bin]++;
+    diag2_N[diag2_bin]++;
+    
+    all_diag1_N.push_back(diag1_bin);
+    all_diag2_N.push_back(diag2_bin);
+    
+    i_sum[i_bin] += norm_matrix[k][j];
+    j_sum[j_bin] += norm_matrix[k][j];
+    i_log_sum[i_bin] += log(norm_matrix[k][j] + 0.1);
+    j_log_sum[j_bin] += log(norm_matrix[k][j] + 0.1);
+    diag1_sum[diag1_bin] += norm_matrix[k][j];
+    diag2_sum[diag2_bin] += norm_matrix[k][j];
+    diag1_log_sum[diag1_bin] += log(norm_matrix[k][j] + 0.1);
+    diag2_log_sum[diag2_bin] += log(norm_matrix[k][j] + 0.1);
+    diag1_bin_sum[diag1_bin] += 1;
+    diag2_bin_sum[diag2_bin] += 1;
+    all_diag1.push_back(norm_matrix[k][j]);
+    all_diag2.push_back(norm_matrix[k][j]);
+    
+    
+  }
       }
       
       double i_cor = get_corr_map(i_sum,i_N);
@@ -3348,17 +3338,17 @@ void find_breaks_100kb_inter (vector<string>& block_data,		\
 }
 
 void find_parameters_100kb_inter (unordered_map<int,double>& m_hash,                \
-				  unordered_map<int,double>& r_hash,	\
-				  unordered_map<int,int>& N_hash,	\
-				  unordered_map<string,unordered_map<string,int> >& data_map, \
-				  unordered_map<string,vector<int> >& ref_map, \
-				  unordered_map<string,unordered_map<int,double> >& bias_map, \
-				  int bin_size,				\
-				  int max_size,				\
-				  double &inter_m,			\
-				  double &inter_r,			\
-				  double &submatrix,	\
-				  int &total_weight) {
+          unordered_map<int,double>& r_hash,  \
+          unordered_map<int,int>& N_hash,  \
+          unordered_map<string,unordered_map<string,int> >& data_map, \
+          unordered_map<string,vector<int> >& ref_map, \
+          unordered_map<string,unordered_map<int,double> >& bias_map, \
+          int bin_size,        \
+          int max_size,        \
+          double &inter_m,      \
+          double &inter_r,      \
+          double &submatrix,  \
+          int &total_weight) {
 
   std::time_t result = std::time(0);
 
@@ -3396,7 +3386,7 @@ void find_parameters_100kb_inter (unordered_map<int,double>& m_hash,            
 
       } else {
 
-	string chr2 = chr_array[v];
+  string chr2 = chr_array[v];
         vector<int> loc_array2 = ref_map[chr2];
 
         double v1 = loc_array1.size();
@@ -3458,10 +3448,10 @@ void find_parameters_100kb_inter (unordered_map<int,double>& m_hash,            
       double norm = n/(b1*b2);
 
       if (chr1 == chr2) {
-	if (loc2 > loc1) {
-	  int dist = loc2 - loc1;
-	  sum_hash[dist] += norm;
-	}
+  if (loc2 > loc1) {
+    int dist = loc2 - loc1;
+    sum_hash[dist] += norm;
+  }
       } else {
 
         inter_sum += norm;
@@ -3510,15 +3500,15 @@ void find_parameters_100kb_inter (unordered_map<int,double>& m_hash,            
       double norm = n/(b1*b2);
 
       if (chr1 == chr2) {
-	if (loc2 > loc1) {
+  if (loc2 > loc1) {
 
-	  int dist = loc2 - loc1;
+    int dist = loc2 - loc1;
 
-	  double val = (norm - sum_hash[dist]/N_hash[dist])*(norm - sum_hash[dist]/N_hash[dist]);
+    double val = (norm - sum_hash[dist]/N_hash[dist])*(norm - sum_hash[dist]/N_hash[dist]);
 
-	  var_sum_hash[dist] += val;
+    var_sum_hash[dist] += val;
 
-	}
+  }
 
       } else {
 
@@ -3597,12 +3587,12 @@ void find_parameters_100kb_inter (unordered_map<int,double>& m_hash,            
 
 }
 
-void get_100kb_odds_ratio_inter (string super_matrix_file,	\
-				 string bias_vector_file,	\
-				 string block_file,		\
-				 int bin_size,			\
-				 int max_size,			\
-				 string name) {
+void get_100kb_odds_ratio_inter (string super_matrix_file,  \
+         string bias_vector_file,  \
+         string block_file,    \
+         int bin_size,      \
+         int max_size,      \
+         string name) {
   
   vector<string> block_data = read_blocks(block_file,max_size);
 
@@ -3634,16 +3624,16 @@ void get_100kb_odds_ratio_inter (string super_matrix_file,	\
 }
 
 void find_parameters_100kb_intra (unordered_map<int,double>& m_hash,                \
-				  unordered_map<int,double>& r_hash,	\
-				  unordered_map<int,int>& N_hash,	\
-				  unordered_map<string,int>& data_map,	\
-				  unordered_map<string,vector<int> >& ref_map, \
-				  unordered_map<string,unordered_map<int,double> >& bias_map, \
-				  unordered_map<string,double>& exp_map, \
-				  int bin_size,				\
-				  int max_size,				\
-				  int& max_weight,			\
-				  double& submatrix) {
+          unordered_map<int,double>& r_hash,  \
+          unordered_map<int,int>& N_hash,  \
+          unordered_map<string,int>& data_map,  \
+          unordered_map<string,vector<int> >& ref_map, \
+          unordered_map<string,unordered_map<int,double> >& bias_map, \
+          unordered_map<string,double>& exp_map, \
+          int bin_size,        \
+          int max_size,        \
+          int& max_weight,      \
+          double& submatrix) {
   
   std::time_t result = std::time(0);
 
@@ -3794,18 +3784,18 @@ void find_parameters_100kb_intra (unordered_map<int,double>& m_hash,            
   
 }
 
-void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
-			      unordered_map<int,double>& r_hash,	\
-			      unordered_map<int,int>& N_hash,		\
-			      unordered_map<string,int>& data_map,	\
-			      unordered_map<string,vector<int> >& ref_map, \
-			      unordered_map<string,unordered_map<int,double> >& bias_map, \
-			      unordered_map<string,double>& exp_map,	\
-			      int bin_size,				\
-			      int max_size,				\
-			      int max_weight,				\
-			      double thresh,				\
-			      string name) {
+void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,  \
+            unordered_map<int,double>& r_hash,  \
+            unordered_map<int,int>& N_hash,    \
+            unordered_map<string,int>& data_map,  \
+            unordered_map<string,vector<int> >& ref_map, \
+            unordered_map<string,unordered_map<int,double> >& bias_map, \
+            unordered_map<string,double>& exp_map,  \
+            int bin_size,        \
+            int max_size,        \
+            int max_weight,        \
+            double thresh,        \
+            string name) {
   
   unordered_map<int,double> fact_hash;
   fact_hash[0] = 0;
@@ -3839,10 +3829,10 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
 
     for (int i=0; i < (loc_array.size() - 1); i++) {
       for (int j=(i + 1); j < loc_array.size(); j++) {
-	string loc1 = static_cast<ostringstream*>( &(ostringstream() << loc_array[i]) )->str();
-	string loc2 = static_cast<ostringstream*>( &(ostringstream() << loc_array[j]) )->str();
-	double b1 = bias_map[chr][loc_array[i]];
-	double b2 = bias_map[chr][loc_array[j]];
+  string loc1 = static_cast<ostringstream*>( &(ostringstream() << loc_array[i]) )->str();
+  string loc2 = static_cast<ostringstream*>( &(ostringstream() << loc_array[j]) )->str();
+  double b1 = bias_map[chr][loc_array[i]];
+  double b2 = bias_map[chr][loc_array[j]];
         string tag = chr + "_" + loc1 + "_" + loc2;
         string tag1 = chr + "_" + loc1;
         string tag2 = chr + "_" + loc2;
@@ -3885,7 +3875,7 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
           test_m = 0.5*m_hash[dist];
         }
 
-	double term1 = r_hash[dist]*log(r_hash[dist]/(r_hash[dist] + test_m));
+  double term1 = r_hash[dist]*log(r_hash[dist]/(r_hash[dist] + test_m));
 
         double term2 = 0;
 
@@ -3936,7 +3926,7 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
 
         }
 
-	double final_p = p_sum/weight_sum;
+  double final_p = p_sum/weight_sum;
 
         double odds = log(final_p) - act_p;
 
@@ -3945,25 +3935,25 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
           odds_matrix[i][j] = -1;
           ori_odds_matrix[i][j] = -1;
           norm_matrix[i][j] = norm;
-	  
+    
         } else {
-	  
-	  if ((exp_map.count(tag) > 0) &&
-	      (exp_map[tag] > 0)) {
-		
-	    odds_matrix[i][j] = odds;
-	    ori_odds_matrix[i][j] = odds;
-	    norm_matrix[i][j] = norm;
-	      
-	  } else {
-		
-	    odds_matrix[i][j] = 0;
-	    ori_odds_matrix[i][j] = 0;
-	    norm_matrix[i][j] = norm;
-	    
-	  }
-	  
-	}
+    
+    if ((exp_map.count(tag) > 0) &&
+        (exp_map[tag] > 0)) {
+    
+      odds_matrix[i][j] = odds;
+      ori_odds_matrix[i][j] = odds;
+      norm_matrix[i][j] = norm;
+        
+    } else {
+    
+      odds_matrix[i][j] = 0;
+      ori_odds_matrix[i][j] = 0;
+      norm_matrix[i][j] = norm;
+      
+    }
+    
+  }
 
       }
     }
@@ -4063,14 +4053,14 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
 
       for (int i=0; i < (top_hits.size() - 1); i++) {
         vector<std::string> new_array1;
-	split_string(new_array1,top_hits[i],'_');
+  split_string(new_array1,top_hits[i],'_');
         int s1 = stoi(new_array1[1]);
         int e1 = stoi(new_array1[2]);
         int s2 = stoi(new_array1[4]);
         int e2 = stoi(new_array1[5]);
         for (int j=(i + 1); j < top_hits.size(); j++) {
           vector<std::string> new_array2;
-	  split_string(new_array2,top_hits[j],'_');
+    split_string(new_array2,top_hits[j],'_');
           int s3 = stoi(new_array2[1]);
           int e3 = stoi(new_array2[2]);
           int s4 = stoi(new_array2[4]);
@@ -4114,20 +4104,20 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
       int set = 0;
 
       while ((set + 1) < top_hits.size()) {
-	
+  
         vector<vector<double> > new_odds_matrix = ori_odds_matrix;
         vector<vector<double> > test_odds_matrix = ori_odds_matrix;
 
         vector<string> new_top_hits;
         vector<double> new_top_sums;
-	
+  
         if (set > 0) {
           for (int i = 0; i < set; i++) {
             new_top_hits.push_back(top_hits[i]);
             new_top_sums.push_back(top_sums[i]);
 
             vector<std::string> new_array1;
-	    split_string(new_array1,top_hits[i],'_');
+      split_string(new_array1,top_hits[i],'_');
             int s1 = stoi(new_array1[1]);
             int e1 = stoi(new_array1[2]);
             int s2 = stoi(new_array1[4]);
@@ -4151,7 +4141,7 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
           if (i == (set + 1)) {
 
             vector<std::string> new_array1;
-	    split_string(new_array1,top_hits[i],'_');
+      split_string(new_array1,top_hits[i],'_');
             int s1 = stoi(new_array1[1]);
             int e1 = stoi(new_array1[2]);
             int s2 = stoi(new_array1[4]);
@@ -4168,29 +4158,29 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
           }
         }
 
-	int new_check = 1;
+  int new_check = 1;
         int pass = 0;
-	
+  
         while (new_check == 1) {
 
           double max_sum = 0;
-	  
+    
           int k1;
           int k2;
           int j1;
           int j2;
 
-	    
+      
           for (int i=0; i < loc_array.size(); i++) {
 
             vector<double> temp(i,0);
             vector<double> temp_raw(i,0);
 
-	    
+      
 
             for (int j=i; j < loc_array.size(); j++) {
 
-	      
+        
 
               for (int k=0; k < i; k++) {
 
@@ -4206,7 +4196,7 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
 
               }
 
-	      
+        
 
               double temp_sum = 0;
               double temp_max = 0;
@@ -4217,15 +4207,15 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
               int f_k1;
               int f_k2;
 
-	      for (int k=0; k< i; k++) {
+        for (int k=0; k< i; k++) {
 
                 double new_sum = temp_sum + temp[k];
 
-		if (new_sum < 0) {
-			    
+    if (new_sum < 0) {
+          
                   temp_sum = 0;
                   t_k1 = k + 1;
-		
+    
                 } else {
 
                   temp_sum = new_sum;
@@ -4233,8 +4223,8 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
 
                   if (temp_sum > temp_max) {
 
-		  
-		    temp_max = temp_sum;
+      
+        temp_max = temp_sum;
                     f_k1 = t_k1;
                     f_k2 = t_k2;
                   }
@@ -4244,20 +4234,20 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
               }
 
               if (temp_max > max_sum) {
-		max_sum = temp_max;
+    max_sum = temp_max;
                 j1 = i;
                 j2 = j;
                 k1 = f_k1;
                 k2 = f_k2;
 
               }
-	      
+        
 
             }
 
-	    
+      
 
-	  }
+    }
 
           if (max_sum > thresh) {
 
@@ -4265,36 +4255,36 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
 
               for (int j = j1; j <= j2; j++) {
 
-		double change = -5;
-		test_odds_matrix[k][j] = change;
+    double change = -5;
+    test_odds_matrix[k][j] = change;
               }
             }
-	      
-	    string s1 = static_cast<ostringstream*>( &(ostringstream() << k1) )->str();
+        
+      string s1 = static_cast<ostringstream*>( &(ostringstream() << k1) )->str();
             string e1 = static_cast<ostringstream*>( &(ostringstream() << k2) )->str();
             string s2 = static_cast<ostringstream*>( &(ostringstream() << j1) )->str();
             string e2 = static_cast<ostringstream*>( &(ostringstream() << j2) )->str();
-	    
+      
             string new_string = chr + "_" + s1 + "_" + e1 + "_" + chr + "_" + s2 + "_" + e2;
 
             string j_strand = "s";
             string k_strand = "s";
-	    
+      
             new_top_hits.push_back(new_string);
             new_top_sums.push_back(max_sum);
-	    	    	    
-	    pass = 1;
-	  	    
+                  
+      pass = 1;
+          
           } else {
             break;
           }
-	  
-	  
-	}
+    
+    
+  }
 
         double all_sum = 0;
         double all_new_sum = 0;
-	
+  
         for (int i = 0; i < top_sums.size(); i++) {
           all_sum += top_sums[i];
         }
@@ -4310,19 +4300,19 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
         } else {
           set++;
         }
-	
-	int final_overlap_check = 0;
-		
+  
+  int final_overlap_check = 0;
+    
         for (int i=set; i < (top_hits.size() - 1); i++) {
           vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[i],'_');
+    split_string(new_array1,top_hits[i],'_');
           int s1 = stoi(new_array1[1]);
           int e1 = stoi(new_array1[2]);
           int s2 = stoi(new_array1[4]);
           int e2 = stoi(new_array1[5]);
           for (int j=(i + 1); j < top_hits.size(); j++) {
             vector<std::string> new_array2;
-	    split_string(new_array2,top_hits[j],'_');
+      split_string(new_array2,top_hits[j],'_');
             int s3 = stoi(new_array2[1]);
             int e3 = stoi(new_array2[2]);
             int s4 = stoi(new_array2[4]);
@@ -4358,7 +4348,7 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
         }
 
         if (final_overlap_check == 0) {
-	  break;
+    break;
         }
 
       }
@@ -4379,7 +4369,7 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
 
         for (int i=0; i < top_hits.size(); i++) {
           vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[i],'_');
+    split_string(new_array1,top_hits[i],'_');
           int s1 = stoi(new_array1[1]);
           int e1 = stoi(new_array1[2]);
           int s2 = stoi(new_array1[4]);
@@ -4392,16 +4382,16 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
           }
         }
 
-	for (int i=0; i < (top_hits.size() - 1); i++) {
+  for (int i=0; i < (top_hits.size() - 1); i++) {
           vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[i],'_');
+    split_string(new_array1,top_hits[i],'_');
           int s1 = stoi(new_array1[1]);
           int e1 = stoi(new_array1[2]);
           int s2 = stoi(new_array1[4]);
           int e2 = stoi(new_array1[5]);
           for (int j=(i + 1); j < top_hits.size(); j++) {
             vector<std::string> new_array2;
-	    split_string(new_array2,top_hits[j],'_');
+      split_string(new_array2,top_hits[j],'_');
             int s3 = stoi(new_array2[1]);
             int e3 = stoi(new_array2[2]);
             int s4 = stoi(new_array2[4]);
@@ -4450,7 +4440,7 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
                 continue;
               }
               vector<std::string> new_array3;
-	      split_string(new_array3,top_hits[k],'_');
+        split_string(new_array3,top_hits[k],'_');
               int s5 = stoi(new_array3[1]);
               int e5 = stoi(new_array3[2]);
               int s6 = stoi(new_array3[4]);
@@ -4463,7 +4453,7 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
               }
             }
 
-	    double loss = all_new_sum - all_sum;
+      double loss = all_new_sum - all_sum;
 
             if ((all_new_sum >= over_max) &&
                 (odds_sum >= thresh)) {
@@ -4478,13 +4468,13 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
 
         if (over_check > 0) {
           vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[over_i],'_');
+    split_string(new_array1,top_hits[over_i],'_');
           int s1 = stoi(new_array1[1]);
           int e1 = stoi(new_array1[2]);
           int s2 = stoi(new_array1[4]);
           int e2 = stoi(new_array1[5]);
           vector<std::string> new_array2;
-	  split_string(new_array2,top_hits[over_j],'_');
+    split_string(new_array2,top_hits[over_j],'_');
           int s3 = stoi(new_array2[1]);
           int e3 = stoi(new_array2[2]);
           int s4 = stoi(new_array2[4]);
@@ -4507,7 +4497,7 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
             new_end1 = static_cast<ostringstream*>( &(ostringstream() << e3) )->str();
             ne1 = e3;
           }
-	  int ns2;
+    int ns2;
           string new_start2;
           if (s2 <= s4) {
             new_start2 = static_cast<ostringstream*>( &(ostringstream() << s2) )->str();
@@ -4548,7 +4538,7 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
               new_top_sums.push_back(top_sums[i]);
             }
           }
-	  top_hits = new_top_hits;
+    top_hits = new_top_hits;
           top_sums = new_top_sums;
         } else {
           stop_test = 1;
@@ -4665,8 +4655,8 @@ void find_breaks_100kb_intra (unordered_map<int,double>& m_hash,	\
 
 }
     
-void read_super_matrix_intra (string super_matrix_file,	\
-				    unordered_map<string,int>& ref_map) {
+void read_super_matrix_intra (string super_matrix_file,  \
+            unordered_map<string,int>& ref_map) {
   
   std::time_t result = std::time(0);
   
@@ -4707,8 +4697,8 @@ void read_super_matrix_intra (string super_matrix_file,	\
 
 }
 
-void read_index_file_100kb_intra (string index_file_name,		\
-				  unordered_map<string,double>& index_map) {
+void read_index_file_100kb_intra (string index_file_name,    \
+          unordered_map<string,double>& index_map) {
 
   std::time_t result = std::time(0);
 
@@ -4749,12 +4739,12 @@ void read_index_file_100kb_intra (string index_file_name,		\
 
 }
 
-void get_100kb_odds_ratio_intra (string super_matrix_file,	\
-				 string bias_vector_file,	\
-				 char* exp_file_intra,		\
-				 int bin_size,			\
-				 int max_size,			\
-				 string name) {
+void get_100kb_odds_ratio_intra (string super_matrix_file,  \
+         string bias_vector_file,  \
+         char* exp_file_intra,    \
+         int bin_size,      \
+         int max_size,      \
+         string name) {
 
   unordered_map<string,vector<int> > ref_map;
   unordered_map<string,unordered_map<int,double> > bias_map;
@@ -4782,15 +4772,15 @@ void get_100kb_odds_ratio_intra (string super_matrix_file,	\
 }
 
 void find_parameters_10kb_intra (unordered_map<int,double>& m_hash,                \
-				 unordered_map<int,double>& r_hash,	\
-				 unordered_map<int,int>& N_hash,	\
-				 unordered_map<string,int>& data_map,	\
-				 unordered_map<string,vector<int> >& ref_map, \
-				 unordered_map<string,unordered_map<int,double> >& bias_map, \
-				 int bin_size,				\
-				 int max_size,				\
-				 int& max_weight,			\
-				 double& submatrix) {
+         unordered_map<int,double>& r_hash,  \
+         unordered_map<int,int>& N_hash,  \
+         unordered_map<string,int>& data_map,  \
+         unordered_map<string,vector<int> >& ref_map, \
+         unordered_map<string,unordered_map<int,double> >& bias_map, \
+         int bin_size,        \
+         int max_size,        \
+         int& max_weight,      \
+         double& submatrix) {
   
   std::time_t result = std::time(0);
   cerr << "Finding parameters now... ";
@@ -4941,17 +4931,17 @@ void find_parameters_10kb_intra (unordered_map<int,double>& m_hash,             
 }
 
 void find_breaks_10kb_intra (vector<string>& block_data,                           \
-			     unordered_map<int,double>& m_hash,		\
-			     unordered_map<int,double>& r_hash,		\
-			     unordered_map<int,int>& N_hash,		\
-			     unordered_map<string,int>& data_map,	\
-			     unordered_map<string,vector<int> >& ref_map, \
-			     unordered_map<string,unordered_map<int,double> >& bias_map, \
-			     int bin_size,				\
-			     int max_size,				\
-			     int max_weight,				\
-			     double thresh,\
-			     string name) {
+           unordered_map<int,double>& m_hash,    \
+           unordered_map<int,double>& r_hash,    \
+           unordered_map<int,int>& N_hash,    \
+           unordered_map<string,int>& data_map,  \
+           unordered_map<string,vector<int> >& ref_map, \
+           unordered_map<string,unordered_map<int,double> >& bias_map, \
+           int bin_size,        \
+           int max_size,        \
+           int max_weight,        \
+           double thresh,\
+           string name) {
   
   unordered_map<int,double> fact_hash;
   fact_hash[0] = 0;
@@ -5030,7 +5020,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
           }
         }
 
-	int dist = l2 - l1;
+  int dist = l2 - l1;
 
         double test_m;
 
@@ -5080,7 +5070,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
 
           double temp_p = N_hash[k]*exp(t1 + t2 + t3)/max_weight;
 
-	  low_p += temp_p;
+    low_p += temp_p;
 
         }
 
@@ -5207,7 +5197,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
     if (top_hits.size() > 1) {
       for (int i=0; i < (top_hits.size() - 1); i++) {
         vector<std::string> new_array1;
-	split_string(new_array1,top_hits[i],'_');
+  split_string(new_array1,top_hits[i],'_');
         int s1 = (stoi(new_array1[1]) - start1)/bin_size;
         int e1 = (stoi(new_array1[2]) - start1)/bin_size;
         int s2 = (stoi(new_array1[3]) - start2)/bin_size;
@@ -5215,7 +5205,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
 
         for (int j=(i + 1); j < top_hits.size(); j++) {
           vector<std::string> new_array2;
-	  split_string(new_array2,top_hits[j],'_');
+    split_string(new_array2,top_hits[j],'_');
           int s3 = (stoi(new_array2[1]) - start1)/bin_size;
           int e3 = (stoi(new_array2[2]) - start1)/bin_size;
           int s4 = (stoi(new_array2[3]) - start2)/bin_size;
@@ -5236,7 +5226,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
           if (s2 < s4) {
             if (e2 >= s4) {
               ot2 = 1;
-	    }
+      }
           } else {
             if (s2 <= e4) {
               ot2 = 1;
@@ -5271,7 +5261,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
             new_top_sums.push_back(top_sums[i]);
 
             vector<std::string> new_array1;
-	    split_string(new_array1,top_hits[i],'_');
+      split_string(new_array1,top_hits[i],'_');
             int s1 = (stoi(new_array1[1]) - start1)/bin_size;
             int e1 = (stoi(new_array1[2]) - start1)/bin_size;
             int s2 = (stoi(new_array1[3]) - start2)/bin_size;
@@ -5289,12 +5279,12 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
           }
         }
 
-	for (int i=0; i < top_hits.size(); i++) {
+  for (int i=0; i < top_hits.size(); i++) {
 
           if (i == (set + 1)) {
 
             vector<std::string> new_array1;
-	    split_string(new_array1,top_hits[i],'_');
+      split_string(new_array1,top_hits[i],'_');
             int s1 = (stoi(new_array1[1]) - start1)/bin_size;
             int e1 = (stoi(new_array1[2]) - start1)/bin_size;
             int s2 = (stoi(new_array1[3]) - start2)/bin_size;
@@ -5348,8 +5338,8 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
 
               int t_k1 = 0;
               int t_k2 = 0;
-	      
-	      int f_k1;
+        
+        int f_k1;
               int f_k2;
 
               for (int k=0; k < odds_matrix.size(); k++) {
@@ -5381,8 +5371,8 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
             }
 
           }
-	   
-	  if (max_sum > t_thresh) {
+     
+    if (max_sum > t_thresh) {
 
             t_thresh += thresh;
 
@@ -5434,10 +5424,10 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
           set++;
         }
 
-	int final_overlap_check = 0;
+  int final_overlap_check = 0;
         for (int i=set; i < (top_hits.size() - 1); i++) {
           vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[i],'_');
+    split_string(new_array1,top_hits[i],'_');
           int s1 = (stoi(new_array1[1]) - start1)/bin_size;
           int e1 = (stoi(new_array1[2]) - start1)/bin_size;
           int s2 = (stoi(new_array1[3]) - start2)/bin_size;
@@ -5445,7 +5435,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
 
           for (int j=(i + 1); j < top_hits.size(); j++) {
             vector<std::string> new_array2;
-	    split_string(new_array2,top_hits[j],'_');
+      split_string(new_array2,top_hits[j],'_');
             int s3 = (stoi(new_array2[1]) - start1)/bin_size;
             int e3 = (stoi(new_array2[2]) - start1)/bin_size;
             int s4 = (stoi(new_array2[3]) - start2)/bin_size;
@@ -5480,11 +5470,11 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
           }
         }
 
-	if (final_overlap_check == 0) {
+  if (final_overlap_check == 0) {
           break;
         }
 
-	
+  
 
       }
     }
@@ -5504,7 +5494,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
         for (int i=0; i < (top_hits.size() - 1); i++) {
 
           vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[i],'_');
+    split_string(new_array1,top_hits[i],'_');
           int s1 = (stoi(new_array1[1]) - start1)/bin_size;
           int e1 = (stoi(new_array1[2]) - start1)/bin_size;
           int s2 = (stoi(new_array1[3]) - start2)/bin_size;
@@ -5518,10 +5508,10 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
           }
         }
 
-	for (int i=0; i < (top_hits.size() - 1); i++) {
+  for (int i=0; i < (top_hits.size() - 1); i++) {
 
           vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[i],'_');
+    split_string(new_array1,top_hits[i],'_');
           int s1 = (stoi(new_array1[1]) - start1)/bin_size;
           int e1 = (stoi(new_array1[2]) - start1)/bin_size;
           int s2 = (stoi(new_array1[3]) - start2)/bin_size;
@@ -5530,7 +5520,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
           for (int j=(i + 1); j < top_hits.size(); j++) {
 
             vector<std::string> new_array2;
-	    split_string(new_array2,top_hits[j],'_');
+      split_string(new_array2,top_hits[j],'_');
             int s3 = (stoi(new_array2[1]) - start1)/bin_size;
             int e3 = (stoi(new_array2[2]) - start1)/bin_size;
             int s4 = (stoi(new_array2[3]) - start2)/bin_size;
@@ -5561,7 +5551,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
               new_end2 = e4;
             }
 
-	    vector<vector<double> > all_new_odds_matrix = ori_odds_matrix;
+      vector<vector<double> > all_new_odds_matrix = ori_odds_matrix;
 
             double all_new_sum = 0;
             double odds_sum = 0;
@@ -5579,7 +5569,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
                 continue;
               }
               vector<std::string> new_array3;
-	      split_string(new_array3,top_hits[k],'_');
+        split_string(new_array3,top_hits[k],'_');
               int s5 = (stoi(new_array3[1]) - start1)/bin_size; //seems to be an error here?
               int e5 = (stoi(new_array3[2]) - start1)/bin_size;
               int s6 = (stoi(new_array3[3]) - start2)/bin_size;
@@ -5604,16 +5594,16 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
           }
         }
 
-	if (over_check > 0) {
+  if (over_check > 0) {
 
           vector<std::string> new_array1;
-	  split_string(new_array1,top_hits[over_i],'_');
+    split_string(new_array1,top_hits[over_i],'_');
           int s1 = stoi(new_array1[1]);
           int e1 = stoi(new_array1[2]);
           int s2 = stoi(new_array1[3]);
           int e2 = stoi(new_array1[4]);
           vector<std::string> new_array2;
-	  split_string(new_array2,top_hits[over_j],'_');
+    split_string(new_array2,top_hits[over_j],'_');
           int s3 = stoi(new_array2[1]);
           int e3 = stoi(new_array2[2]);
           int s4 = stoi(new_array2[3]);
@@ -5655,7 +5645,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
             ne2 = (e4 - start2)/bin_size;
           }
 
-	  double new_sum = 0;
+    double new_sum = 0;
           for (int k = ns1; k < ne1; k++) {
             for (int l = ns2; l < ne2; l++) {
               new_sum += ori_odds_matrix[k][l];
@@ -5796,7 +5786,7 @@ void find_breaks_10kb_intra (vector<string>& block_data,                        
   break_output.close();
 
 }
-	
+  
 void get_10kb_odds_ratio_intra (string super_matrix_file,       \
                                 string bias_vector_file,        \
                                 string block_file,              \
@@ -5833,7 +5823,7 @@ void get_10kb_odds_ratio_intra (string super_matrix_file,       \
 void read_break_file (string break_file,\
                       vector<string>& break_vector,\
                       vector<string>& size_vector,\
-		      string size) {
+          string size) {
 
   cerr << "Reading in break file now... ";
 
@@ -5848,7 +5838,7 @@ void read_break_file (string break_file,\
 
 }
 
-void merge_break_file (string break_file,		\
+void merge_break_file (string break_file,    \
                        int bin_size,                    \
                        vector<string>& break_vector,    \
                        vector<string>& size_vector,
@@ -5904,79 +5894,79 @@ void merge_break_file (string break_file,		\
 
       if ((chr1 == chr3) &&
           (chr2 == chr4)) {
-	
-	if (start1 < start3) {
-	  if (end1 > start3) {
-	    if (start2 < start4) {
-	      if (end2 > start4) {
-		over_check = 1;
-	      }
-	    } else {
-	      if (start2 < end4) {
-		over_check = 1;
-	      }
-	    }
-	  }
-	} else {
-	  if (start1 < end3) {
-	    if (start2 < start4) {
-	      if (end2 > start4) {
-		over_check = 1;
-	      }
-	    } else {
-	      if (start2 < end4) {
-		over_check = 1;
-	      }
-	    }
-	  }
-	}
-	
-	if (over_check == 1) {
-	  test = 1;
-	  
-	  vector<string> new_temp_array;
-	  
-	  for (int k=0; k < break_vector.size(); k++) {
-	    if ((k != i) &&
-		(k != j)) {
-	      new_temp_array.push_back(break_vector[k]);
-	    }
-	  }
-	  
-	  string new_start1;
-	  if (start1 < start3) {
-	    new_start1 = static_cast<ostringstream*>( &(ostringstream() << start1) )->str();
-	  } else {
-	    new_start1 = static_cast<ostringstream*>( &(ostringstream() << start3) )->str();
-	  }
-	  
-	  string new_end1;
-	  if (end1 > end3) {
-	    new_end1 = static_cast<ostringstream*>( &(ostringstream() << end1) )->str();
-	  } else {
-	    new_end1 = static_cast<ostringstream*>( &(ostringstream() << end3) )->str();
-	  }
-	  
-	  string new_start2;
-	  if (start2 < start4) {
-	    new_start2 = static_cast<ostringstream*>( &(ostringstream() << start2) )->str();
-	  } else {
-	    new_start2 = static_cast<ostringstream*>( &(ostringstream() << start4) )->str();
-	  }
-	  
-	  string new_end2;
-	  if (end2 > end4) {
-	    new_end2 = static_cast<ostringstream*>( &(ostringstream() << end2) )->str();
-	  } else {
-	    new_end2 = static_cast<ostringstream*>( &(ostringstream() << end4) )->str();
-	  }
-	  
-	  string new_string = "-1\t" + chr1 + "\t" + new_start1 + "\t" + new_end1 + "\t-1\t" + chr2 + "\t" + new_start2 + "\t" + new_end2 + "\t-1";
-	  
-	  new_temp_array.push_back(new_string);
-	  break_vector = new_temp_array;
-	  break;
-	}
+  
+  if (start1 < start3) {
+    if (end1 > start3) {
+      if (start2 < start4) {
+        if (end2 > start4) {
+    over_check = 1;
+        }
+      } else {
+        if (start2 < end4) {
+    over_check = 1;
+        }
+      }
+    }
+  } else {
+    if (start1 < end3) {
+      if (start2 < start4) {
+        if (end2 > start4) {
+    over_check = 1;
+        }
+      } else {
+        if (start2 < end4) {
+    over_check = 1;
+        }
+      }
+    }
+  }
+  
+  if (over_check == 1) {
+    test = 1;
+    
+    vector<string> new_temp_array;
+    
+    for (int k=0; k < break_vector.size(); k++) {
+      if ((k != i) &&
+    (k != j)) {
+        new_temp_array.push_back(break_vector[k]);
+      }
+    }
+    
+    string new_start1;
+    if (start1 < start3) {
+      new_start1 = static_cast<ostringstream*>( &(ostringstream() << start1) )->str();
+    } else {
+      new_start1 = static_cast<ostringstream*>( &(ostringstream() << start3) )->str();
+    }
+    
+    string new_end1;
+    if (end1 > end3) {
+      new_end1 = static_cast<ostringstream*>( &(ostringstream() << end1) )->str();
+    } else {
+      new_end1 = static_cast<ostringstream*>( &(ostringstream() << end3) )->str();
+    }
+    
+    string new_start2;
+    if (start2 < start4) {
+      new_start2 = static_cast<ostringstream*>( &(ostringstream() << start2) )->str();
+    } else {
+      new_start2 = static_cast<ostringstream*>( &(ostringstream() << start4) )->str();
+    }
+    
+    string new_end2;
+    if (end2 > end4) {
+      new_end2 = static_cast<ostringstream*>( &(ostringstream() << end2) )->str();
+    } else {
+      new_end2 = static_cast<ostringstream*>( &(ostringstream() << end4) )->str();
+    }
+    
+    string new_string = "-1\t" + chr1 + "\t" + new_start1 + "\t" + new_end1 + "\t-1\t" + chr2 + "\t" + new_start2 + "\t" + new_end2 + "\t-1";
+    
+    new_temp_array.push_back(new_string);
+    break_vector = new_temp_array;
+    break;
+  }
       }
       
     }
@@ -6015,48 +6005,48 @@ void merge_break_file (string break_file,		\
       int end4 = stoi(array2[7]);
       
       if ((chr1 == chr3) &&
-	  (chr2 == chr4)) {
-	if ((array1[1] == array2[1]) &&
-	    (array1[5] == array2[5])) {
-	  if ((start3 >= start1) &&
-	      (end3 <= end1) &&
-	      (start4 >= start2) &&
-	      (end4 <= end2)) {
-	    check = 1;
-	  }
-	}
+    (chr2 == chr4)) {
+  if ((array1[1] == array2[1]) &&
+      (array1[5] == array2[5])) {
+    if ((start3 >= start1) &&
+        (end3 <= end1) &&
+        (start4 >= start2) &&
+        (end4 <= end2)) {
+      check = 1;
+    }
+  }
       }
     }
     if (check == 0) {
       for (int k = 0; k < ori_break_vector.size(); k++) {
-	
-	vector<string> array2;
-	split_string(array2,ori_break_vector[k],'\t');
+  
+  vector<string> array2;
+  split_string(array2,ori_break_vector[k],'\t');
 
-	string chr3 = array2[1];
-	string chr4 = array2[5];
+  string chr3 = array2[1];
+  string chr4 = array2[5];
 
-	int start3 = stoi(array2[2]);
-	int end3 = stoi(array2[3]);
-	int start4 = stoi(array2[6]);
-	int end4 = stoi(array2[7]);
+  int start3 = stoi(array2[2]);
+  int end3 = stoi(array2[3]);
+  int start4 = stoi(array2[6]);
+  int end4 = stoi(array2[7]);
 
-	if ((chr1== chr3) &&
-	    (chr2== chr4)) {
+  if ((chr1== chr3) &&
+      (chr2== chr4)) {
 
-	  if ((array1[1] == array2[1]) &&
-	      (array1[5] == array2[5])) {
-	    if ((start3 >= start1) &&
-		(end3 <= end1) &&
-		(start4 >= start2) &&
-		(end4 <= end2)) {
-	  
-	      final_break_vector.push_back(ori_break_vector[k]);
-	      final_size_vector.push_back(size_vector[k]);
+    if ((array1[1] == array2[1]) &&
+        (array1[5] == array2[5])) {
+      if ((start3 >= start1) &&
+    (end3 <= end1) &&
+    (start4 >= start2) &&
+    (end4 <= end2)) {
+    
+        final_break_vector.push_back(ori_break_vector[k]);
+        final_size_vector.push_back(size_vector[k]);
 
-	    }
-	  }
-	}
+      }
+    }
+  }
       }
     }
   }
@@ -6069,7 +6059,7 @@ void merge_break_file (string break_file,		\
 }
 
 void merge_output (string name,\
-		   int min_1kb_flag) {
+       int min_1kb_flag) {
 
   vector<string> inter_break_vector;
   vector<string> inter_size_vector;
@@ -6158,7 +6148,7 @@ int main(int argc, char **argv) {
     int option_index = 0;
 
     c = getopt_long (argc, argv, "abc:d:f:",
-		     long_options, &option_index);
+         long_options, &option_index);
     
     if (c == -1) {
       break;
@@ -6166,11 +6156,11 @@ int main(int argc, char **argv) {
 
     switch (c)
       {
-	
+  
       case 'b':
-	bam_file = optarg;
-	break;
-	
+  bam_file = optarg;
+  break;
+  
       case 'q':
         out_name = optarg;
         break;
@@ -6184,14 +6174,14 @@ int main(int argc, char **argv) {
         break;
 
       case 'm':
-	min_flag = 1;
+  min_flag = 1;
         break;
 
       case '?':
-	break;
+  break;
 
       default:
-	abort ();
+  abort ();
       }
   }
 
