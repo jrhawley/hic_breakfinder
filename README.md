@@ -31,25 +31,28 @@ If you want to install somewhere that isn't `/usr/local/bin/` run:
 
 This will create the `hic_breakfinder` executable in `/path/to/install/directory/bin/`.
 
+### Non-traditional library locations
+
 If your version of `eigen` is installed in a non-traditional location, you will need to run configure as follows:
 
 ```shell
 ./configure CPPFLAGS="-I /path/to/eigen"
 ```
 
-If your version of `bamtools is installed in a non-traditional location, you will need to run configure as follows:
+If your version of `bamtools` is installed in a non-traditional location, you will need to run configure as follows:
 
 ```shell
 ./configure CPPFLAGS="-I /path/to/bamtools/include/" LDFLAGS="-L/path/to/bamtools/lib/"
 ```
 
-If both `eigen` and `bamtools` are installed in non-traditional locations, you will need to run the configure file as follows:
+### Conda installation
+
+`eigen` and `bamtools` are both available as Conda packages, but `hic_breakfinder` is not.
+To compile `hic_breakfinder` to work with your Conda installation, run:
 
 ```shell
-./configure CPPFLAGS="-I /path/to/bamtools/include -I /path/to/eigen" LDFLAGS="-L/path/to/bamtools/lib/"
+./configure CPPFLAGS="-I${CONDA_PREFIX}/include/bamtools/ -I${CONDA_PREFIX}/include/eigen3/" LDFLAGS="-L${CONDA_PREFIX}/lib/" --prefix=${CONDA_PREFIX}/ --host=linux
 ```
-
-After installation, the `hic_breakfinder` executable should be stored in the bin directory.
 
 ## Usage
 
