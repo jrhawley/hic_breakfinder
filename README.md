@@ -102,7 +102,7 @@ Therefore, each prediction represents a sub-matrix, reporting the positions of t
 
 Here we will describe the meaning of column of the line:
 
-1. Log-odds score of the rearrangement call. This is can be thought of as the "strength" of the call.
+1. (Natural) Log-odds score of the rearrangement call. This is can be thought of as the "strength" of the call.
 2. Column chromosome
 3. Column start
 4. Column end

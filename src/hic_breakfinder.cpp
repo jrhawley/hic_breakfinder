@@ -19,11 +19,14 @@ using namespace std;
 
 void usage () {
   std::cerr << "hic_breakfinder --bam-file <BAM> --exp-file-inter <INTER> --exp-file-intra <INTRA> --name <PREFIX>\n\n";
-  std::cerr << "Required options:\n\n";
+  std::cerr << "Parameters:\n\n";
   std::cerr << "--bam-file [input bam file]\n";
   std::cerr << "--exp-file-inter [Inter-chromosomal 1Mb expectation file]\n";
   std::cerr << "--exp-file-intra [Intra-chromosomal 100kb expectation file]\n";
   std::cerr << "--name [output file name prefix, will append with *.super_matrix.txt and *.SR.txt]\n\n";  
+  std::cerr << "Options:\n\n";
+  std::cerr << "--min-1kb        [Flag to detect breakpoints down to 1 kbp]\n";
+  std::cerr << "--thresh [val, Set detection threshold value]\n";
   
 }
 
